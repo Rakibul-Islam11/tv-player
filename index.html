@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Custom HLS Controls</title>
+        <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+            }
+
+            video {
+                width: 100%;
+                /* max-width: 800px; */
+                height: auto;
+                display: block;
+            }
+
+            #controlsContainer {
+                position: relative;
+                width: 100%;
+                max-width: 800px;
+                margin: auto;
+            }
+
+            .custom-controls {
+                position: absolute;
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                display: flex;
+                justify-content: space-between;
+                background: rgba(0, 0, 0, 0.5);
+                padding: 10px;
+                border-radius: 5px;
+                align-items: center;
+            }
+
+            .control-button {
+                color: white;
+                cursor: pointer;
+            }
+
+            /* Play/pause button for video poster */
+            #posterPlayPauseBtn {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 48px;
+                color: white;
+                display: none;
+                /* Default hidden */
+                pointer-events: none;
+                /* Don't affect other buttons */
+            }
+
+
+            #captionIcon {
+                bottom: 88px;
+                right: 10px;
+            }
+
+            #resIcon {
+                bottom: 119px;
+                right: 10px;
+            }
+
+            #speedIcon {
+                bottom: 149px;
+                right: 12px;
+            }
+
+
+            #audioDropdown,
+            #captionDropdown,
+            #resDropdown,
+            #speedDropdown {
+                display: none;
+                position: absolute;
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                border-radius: 5px;
+                z-index: 1;
+                padding: 5px;
+            }
+
+            #audioDropdown {
+                bottom: 90px;
+                right: 10px;
+            }
+
+            #captionDropdown {
+                bottom: 130px;
+                right: 10px;
+            }
+
+            #resDropdown {
+                bottom: 170px;
+                right: 10px;
+            }
+
+            #speedDropdown {
+                bottom: 210px;
+                right: 10px;
+            }
+
+            .option {
+                padding: 5px;
+                cursor: pointer;
+            }
+
+            .option:hover {
+                background: rgba(255, 255, 255, 0.2);
+            }
+
+            input[type="range"] {
+                width: 100px;
+
+            }
+
+            /* Live button styling */
+            #liveBtn {
+                background-color: red;
+                color: white;
+                padding: 5px 10px;
+                border-radius: 5px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+
+            .time_and_expan {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                gap: 15px;
+            }
+
+            .vol_and_liv {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 10px;
+            }
+
+            #volumeSlider {
+                position: absolute;
+                bottom: 50px;
+                left: -1px;
+            }
+
+            .custom-controls {
+                transition: opacity 0.3s ease;
+                /* For smooth visibility change */
+                opacity: 0;
+                visibility: hidden;
+                /* Initially hidden */
+            }
+        </style>
+    </head>
+
+    <body>
+        <div id="controlsContainer">
+            <video id="video"></video>
+
+            <div class="custom-controls">
+                <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="1">
+                <div class="vol_and_liv">
+
+                    <i id="volumeIcon" class="fas fa-volume-up" style="color: white;"></i>
+                    <div id="liveBtn">LIVE</div>
+                </div>
+                <div class="play_ps">
+                    <i id="playPauseBtn" class="fas fa-play control-button"></i>
+                </div>
+                <div class="time_and_expan">
+                    <i id="speedIcon" class="fas fa-tachometer-alt" style="color: white;"></i>
+                    <!-- <i id="resIcon" class="fas fa-tv" style="color: white;"></i> -->
+                    <i id="resIcon" class="fa-solid fa-gear" style="color: white;"></i>
+                    <i id="captionIcon" class="fas fa-closed-captioning" style="color: white;"></i>
+                    <i id="languageIcon" class="fas fa-globe" style="color: white;"></i>
+                    <div id="audioDropdown"></div>
+                    <span id="currentTime" class="control-button">0:00</span>
+                    <i id="fullscreenIcon" class="fas fa-expand" style="color: white;"></i>
+                </div>
+            </div>
+
+            <!-- Live Button -->
+
+            <!-- Play/pause button in the center of the video -->
+            <i id="posterPlayPauseBtn" class="fas fa-play"></i>
+
+            <div id="captionDropdown"></div>
+
+
+            <div id="resDropdown"></div>
+
+            <div id="speedDropdown">
+                <div class="option" data-speed="0.5">0.5x</div>
+                <div class="option" data-speed="1">Normal</div>
+                <div class="option" data-speed="1.5">1.5x</div>
+                <div class="option" data-speed="2">2x</div>
+            </div>
+        </div>
+
+
+        <script>
+
+
+            const video = document.getElementById('video'),
+                playPauseBtn = document.getElementById('playPauseBtn'),
+                posterPlayPauseBtn = document.getElementById('posterPlayPauseBtn'),
+                currentTimeDisplay = document.getElementById('currentTime'),
+                languageIcon = document.getElementById('languageIcon'),
+                audioDropdown = document.getElementById('audioDropdown'),
+                captionIcon = document.getElementById('captionIcon'),
+                captionDropdown = document.getElementById('captionDropdown'),
+                resIcon = document.getElementById('resIcon'),
+                resDropdown = document.getElementById('resDropdown'),
+                speedIcon = document.getElementById('speedIcon'),
+                speedDropdown = document.getElementById('speedDropdown'),
+                volumeIcon = document.getElementById('volumeIcon'),
+                volumeSlider = document.getElementById('volumeSlider'),
+                fullscreenIcon = document.getElementById('fullscreenIcon'),
+                controlsContainer = document.getElementById('controlsContainer'),
+                hls = Hls.isSupported() ? new Hls() : null;
+
+            let controlTimeout; // Timeout for hiding controls
+
+            if (hls) {
+                hls.loadSource('https://raw.githubusercontent.com/KMABIDHASAN63/project/refs/heads/main/discovery.m3u8');
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+                hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, (e, d) => {
+                    audioDropdown.innerHTML = d.audioTracks.map((t, i) =>
+                        `<div class="option" data-track="${i}">${t.name || `Audio ${i + 1}`}</div>`
+                    ).join('');
+                });
+                hls.on(Hls.Events.LEVEL_UPDATED, (e, d) => {
+                    resDropdown.innerHTML = hls.levels.map((l, i) =>
+                        `<div class="option" data-res="${i}">${l.height}p</div>`
+                    ).join('');
+                });
+                hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (e, d) => {
+                    captionDropdown.innerHTML = d.subtitleTracks.map((t, i) =>
+                        `<div class="option" data-caption="${i}">${t.name || `Subtitle ${i + 1}`}</div>`
+                    ).join('');
+                });
+            } else {
+                video.src = 'https://raw.githubusercontent.com/KMABIDHASAN63/project/refs/heads/main/discovery.m3u8';
+                video.onloadedmetadata = () => video.play();
+            }
+
+            // ভিডিও লোড হলে পোস্টার প্লে বাটন দেখানো হবে
+            video.onloadedmetadata = () => {
+                posterPlayPauseBtn.style.display = 'block'; // Show central button initially
+                video.pause(); // Ensure the video is paused initially
+                showControls(); // Show controls when video loads
+            };
+
+            // Custom play/pause control
+            playPauseBtn.onclick = () => {
+                if (video.paused) {
+                    video.play();
+                    playPauseBtn.classList.replace('fa-play', 'fa-pause');
+                    posterPlayPauseBtn.style.display = 'none'; // Hide central button when playing
+                    hideControlsWithDelay();
+                } else {
+                    video.pause();
+                    playPauseBtn.classList.replace('fa-pause', 'fa-play');
+                    posterPlayPauseBtn.style.display = 'block'; // Show central button when paused
+                    showControls();
+                }
+            };
+
+            // Video click play/pause
+            video.onclick = () => {
+                if (video.paused) {
+                    video.play();
+                    playPauseBtn.classList.replace('fa-play', 'fa-pause');
+                    posterPlayPauseBtn.style.display = 'none';
+                    hideControlsWithDelay();
+                } else {
+                    video.pause();
+                    playPauseBtn.classList.replace('fa-pause', 'fa-play');
+                    posterPlayPauseBtn.style.display = 'block';
+                    showControls();
+                }
+            };
+
+            // Show central button on pause
+            video.onpause = () => {
+                posterPlayPauseBtn.style.display = 'block';
+                showControls();
+            };
+
+            // Hide central button on play
+            video.onplay = () => {
+                posterPlayPauseBtn.style.display = 'none';
+                hideControlsWithDelay();
+            };
+
+            // Update current time display
+            video.ontimeupdate = () => {
+                const minutes = Math.floor(video.currentTime / 60);
+                const seconds = Math.floor(video.currentTime % 60).toString().padStart(2, '0');
+                currentTimeDisplay.textContent = `${minutes}:${seconds}`;
+            };
+
+            // Hover over controls container to keep controls visible
+            controlsContainer.onmouseenter = () => {
+                showControls();
+                clearTimeout(controlTimeout);
+            };
+
+            controlsContainer.onmouseleave = () => {
+                if (!video.paused) {
+                    hideControlsWithDelay(); // Hide controls after 3 seconds on hover out
+                }
+            };
+
+            // Show controls
+            function showControls() {
+                controlsContainer.querySelector('.custom-controls').style.opacity = '1';
+                controlsContainer.querySelector('.custom-controls').style.visibility = 'visible';
+            }
+
+            // Hide controls after 3 seconds
+            function hideControlsWithDelay() {
+                clearTimeout(controlTimeout);
+                controlTimeout = setTimeout(() => {
+                    controlsContainer.querySelector('.custom-controls').style.opacity = '0';
+                    controlsContainer.querySelector('.custom-controls').style.visibility = 'hidden';
+                }, 3000);
+            }
+
+            // Language track selection
+            languageIcon.onclick = () => {
+                audioDropdown.style.display = audioDropdown.style.display === 'block' ? 'none' : 'block';
+            };
+
+            audioDropdown.onclick = (e) => {
+                const trackIndex = e.target.getAttribute('data-track');
+                if (trackIndex !== null) {
+                    hls.audioTrack = trackIndex;
+                    audioDropdown.style.display = 'none';
+                }
+            };
+
+            // Caption track selection
+            captionIcon.onclick = () => {
+                captionDropdown.style.display = captionDropdown.style.display === 'block' ? 'none' : 'block';
+            };
+
+            captionDropdown.onclick = (e) => {
+                const captionIndex = e.target.getAttribute('data-caption');
+                if (captionIndex !== null) {
+                    hls.subtitleTrack = captionIndex;
+                    captionDropdown.style.display = 'none';
+                }
+            };
+
+            // Resolution selection
+            resIcon.onclick = () => {
+                resDropdown.style.display = resDropdown.style.display === 'block' ? 'none' : 'block';
+            };
+
+            resDropdown.onclick = (e) => {
+                const resIndex = e.target.getAttribute('data-res');
+                if (resIndex !== null) {
+                    hls.currentLevel = resIndex;
+                    resDropdown.style.display = 'none';
+                }
+            };
+
+            // Speed selection
+            speedIcon.onclick = () => {
+                speedDropdown.style.display = speedDropdown.style.display === 'block' ? 'none' : 'block';
+            };
+
+            speedDropdown.onclick = (e) => {
+                const speed = e.target.getAttribute('data-speed');
+                if (speed !== null) {
+                    video.playbackRate = speed;
+                    speedDropdown.style.display = 'none';
+                }
+            };
+
+            // Volume control
+            volumeIcon.onclick = () => {
+                volumeSlider.style.display = volumeSlider.style.display === 'block' ? 'none' : 'block';
+            };
+
+            volumeSlider.oninput = (e) => {
+                video.volume = e.target.value;
+            };
+
+            // Fullscreen control
+            fullscreenIcon.onclick = () => {
+                if (!document.fullscreenElement) {
+                    video.requestFullscreen().catch(err => {
+                        alert(`Error attempting to enable full-screen mode: ${err.message}`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            };
+
+            // Hide dropdowns when clicking outside
+            window.onclick = (e) => {
+                if (!languageIcon.contains(e.target) && !audioDropdown.contains(e.target)) {
+                    audioDropdown.style.display = 'none';
+                }
+                if (!captionIcon.contains(e.target) && !captionDropdown.contains(e.target)) {
+                    captionDropdown.style.display = 'none';
+                }
+                if (!resIcon.contains(e.target) && !resDropdown.contains(e.target)) {
+                    resDropdown.style.display = 'none';
+                }
+                if (!speedIcon.contains(e.target) && !speedDropdown.contains(e.target)) {
+                    speedDropdown.style.display = 'none';
+                }
+                if (!volumeIcon.contains(e.target) && !volumeSlider.contains(e.target)) {
+                    volumeSlider.style.display = 'none';
+                }
+            };
+
+
+
+            // Fullscreen control
+            fullscreenIcon.onclick = () => {
+                if (!document.fullscreenElement) {
+                    controlsContainer.requestFullscreen().catch(err => {
+                        alert(`Error attempting to enable full-screen mode: ${err.message}`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            };
+
+            // Ensure the controls are visible in fullscreen mode
+            document.addEventListener('fullscreenchange', () => {
+                if (document.fullscreenElement) {
+                    showControls(); // Show controls when entering fullscreen
+                } else {
+                    hideControlsWithDelay(); // Hide controls when exiting fullscreen
+                }
+            });
+            // Custom play/pause control and video mousemove listener
+            let isFullscreen = false; // Track whether fullscreen is active
+            let cursorTimer; // For hiding cursor and controls after inactivity
+
+            // Show controls and reset hide timer on mousemove
+            video.onmousemove = () => {
+                if (isFullscreen) {
+                    showControls();
+                    clearTimeout(controlTimeout);
+                    hideControlsWithDelay();
+                }
+            };
+
+            // Fullscreen control
+            fullscreenIcon.onclick = () => {
+                if (!document.fullscreenElement) {
+                    controlsContainer.requestFullscreen().catch(err => {
+                        alert(`Error attempting to enable full-screen mode: ${err.message}`);
+                    });
+                    isFullscreen = true; // Enable fullscreen tracking
+                } else {
+                    document.exitFullscreen();
+                    isFullscreen = false; // Disable fullscreen tracking
+                }
+            };
+
+            // Ensure the controls are visible in fullscreen mode
+            document.addEventListener('fullscreenchange', () => {
+                if (document.fullscreenElement) {
+                    showControls(); // Show controls when entering fullscreen
+                    hideControlsWithDelay(); // Hide controls with delay in fullscreen
+                } else {
+                    hideControlsWithDelay(); // Hide controls when exiting fullscreen
+                }
+            });
+
+            // Function to hide controls after 3 seconds of inactivity
+            function hideControlsWithDelay() {
+                clearTimeout(controlTimeout);
+                controlTimeout = setTimeout(() => {
+                    controlsContainer.querySelector('.custom-controls').style.opacity = '0';
+                    controlsContainer.querySelector('.custom-controls').style.visibility = 'hidden';
+                }, 3000);
+            }
+
+
+        </script>
+
+
+
+    </body>
+
+</html>
